@@ -37,7 +37,13 @@ type LoggerConfig struct {
 	LogFormat string // json, console
 }
 
-func ProvideZeroLogger(cfg LoggerConfig, shutdown *ShutdownContext) (*zerolog.Logger, error) {
+func ProvideZeroLogger(goocfg *Config, shutdown *ShutdownContext) (*zerolog.Logger, error) {
+	if goocfg.Logging == nil {
+		return nil, fmt.Errorf("no logging configuration")
+	}
+
+	cfg := goocfg.Logging
+
 	// configure timestamp etc...
 	log := log.Logger
 
