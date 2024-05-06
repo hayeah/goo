@@ -1,7 +1,9 @@
 package goo
 
 import (
+	"database/sql/driver"
 	"embed"
+	"encoding/json"
 	"fmt"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -98,4 +100,30 @@ func ProvideEmbbededMigrate(embedCfg *EmbeddedMigrateConfig, cfg *Config) (*Embb
 	}
 
 	return (*EmbbededMigrate)(m), err
+}
+
+type JSONColumn[T any] struct {
+	V T
+}
+
+func (j *JSONColumn[T]) Scan(src any) error {
+	if src == nil {
+		return nil
+	}
+	return json.Unmarshal(src.([]byte), &j.V)
+}
+
+func (j *JSONColumn[T]) Value() (driver.Value, error) {
+	raw, err := json.Marshal(j.V)
+	return raw, err
+}
+
+// MarshalJSON
+func (j JSONColumn[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(j.V)
+}
+
+// UnmarshalJSON
+func (j *JSONColumn[T]) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &j.V)
 }
