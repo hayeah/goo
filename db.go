@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -17,7 +18,8 @@ type DatabaseConfig struct {
 	Dialect string
 	DSN     string
 
-	MigrationsPath string
+	MigrationsPath        string
+	MigrationsRunManually bool
 }
 
 func ProvideSQLX(goocfg *Config, down *ShutdownContext, log *zerolog.Logger) (*sqlx.DB, error) {
@@ -61,6 +63,15 @@ func ProvideMigrate(basecfg *Config) (*migrate.Migrate, error) {
 	m, err := migrate.New(fileURL, databaseURL)
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.MigrationsRunManually {
+		return m, nil
+	}
+
+	err = m.Up()
+	if err == migrate.ErrNoChange {
+		err = nil
 	}
 
 	return m, nil
@@ -110,12 +121,23 @@ func (j *JSONColumn[T]) Scan(src any) error {
 	if src == nil {
 		return nil
 	}
-	return json.Unmarshal(src.([]byte), &j.V)
+
+	switch src := src.(type) {
+	case []byte:
+		return json.Unmarshal(src, &j.V)
+	case string:
+		return json.Unmarshal([]byte(src), &j.V)
+	default:
+		return fmt.Errorf("unsupported type: %T", src)
+	}
 }
 
 func (j *JSONColumn[T]) Value() (driver.Value, error) {
 	raw, err := json.Marshal(j.V)
-	return raw, err
+	if err != nil {
+		return nil, err
+	}
+	return string(raw), err
 }
 
 // MarshalJSON
@@ -126,4 +148,55 @@ func (j JSONColumn[T]) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON
 func (j *JSONColumn[T]) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &j.V)
+}
+
+// TimeColumn stores time.Time as int64 in SQLITE
+type TimeColumn struct {
+	time.Time
+}
+
+// Scan implements the Scanner interface for JSONDateTime
+// Expects time as uint64 from the database.
+func (jdt *TimeColumn) Scan(src any) error {
+	if src == nil {
+		return nil
+	}
+
+	var unixTime uint64
+	switch src := src.(type) {
+	case int64:
+		unixTime = uint64(src)
+	case uint64:
+		unixTime = src
+	default:
+		return fmt.Errorf("unsupported type: %T", src)
+	}
+
+	jdt.Time = time.UnixMilli(int64(unixTime))
+	return nil
+}
+
+// Value implements the Valuer interface for JSONDateTime
+// Returns the time as uint64 UNIX timestamp.
+func (jdt TimeColumn) Value() (driver.Value, error) {
+	return jdt.UnixMilli(), nil
+}
+
+// MarshalJSON converts the JSONDateTime to a JSON string in ISO format.
+func (jdt TimeColumn) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jdt.Time.Format(time.RFC3339))
+}
+
+// UnmarshalJSON parses an ISO format JSON string into JSONDateTime.
+func (jdt *TimeColumn) UnmarshalJSON(data []byte) error {
+	var isoStr string
+	if err := json.Unmarshal(data, &isoStr); err != nil {
+		return err
+	}
+	t, err := time.Parse(time.RFC3339, isoStr)
+	if err != nil {
+		return err
+	}
+	jdt.Time = t
+	return nil
 }

@@ -9,6 +9,10 @@ import (
 	"github.com/ziflex/lecho/v3"
 )
 
+type EchoConfig struct {
+	Listen string
+}
+
 func NewEcho() *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
