@@ -11,10 +11,12 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/tailscale/hujson"
+	"github.com/titanous/json5"
 )
 
 var (
 	JSONFormat   = "json"
+	JSON5Format  = "json5"
 	HUJSONFormat = "hujson"
 	YAMLFormat   = "yaml"
 	TOMLFormat   = "toml"
@@ -107,6 +109,25 @@ func Decode(r io.Reader, format string, o interface{}) error {
 		err = json.Unmarshal(data, o)
 		if err != nil {
 			return fmt.Errorf("decode hujson: %w", err)
+		}
+	case JSON5Format:
+		// First decode JSON5, encode back to JSON, then decode JSON. This
+		// standardizes the JSON5 input, so it properly decodes into a struct
+		// with custom JSON unmarshalers.
+		var val interface{}
+		err := json5.NewDecoder(r).Decode(&val)
+		if err != nil {
+			return fmt.Errorf("decode json5: %w", err)
+		}
+
+		data, err := json.Marshal(val)
+		if err != nil {
+			return fmt.Errorf("decode json5: %w", err)
+		}
+
+		err = json.Unmarshal(data, o)
+		if err != nil {
+			return fmt.Errorf("decode json5: %w", err)
 		}
 	default:
 		return fmt.Errorf("unsupported config file format: %s", format)
