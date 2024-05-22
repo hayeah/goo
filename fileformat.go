@@ -10,12 +10,14 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/pelletier/go-toml/v2"
+	"github.com/tailscale/hujson"
 )
 
 var (
-	JSONFormat = "json"
-	YAMLFormat = "yaml"
-	TOMLFormat = "toml"
+	JSONFormat   = "json"
+	HUJSONFormat = "hujson"
+	YAMLFormat   = "yaml"
+	TOMLFormat   = "toml"
 )
 
 func PrintJSON(o interface{}) error {
@@ -71,12 +73,12 @@ func Encode(w io.Writer, format string, o interface{}) error {
 
 func Decode(r io.Reader, format string, o interface{}) error {
 	switch format {
-	case "toml":
+	case TOMLFormat:
 		err := toml.NewDecoder(r).Decode(o)
 		if err != nil {
 			return fmt.Errorf("decode toml: %w", err)
 		}
-	case "yaml":
+	case YAMLFormat:
 		data, err := io.ReadAll(r)
 		if err != nil {
 			return fmt.Errorf("decode yaml: %w", err)
@@ -86,10 +88,25 @@ func Decode(r io.Reader, format string, o interface{}) error {
 		if err != nil {
 			return fmt.Errorf("decode yaml: %w", err)
 		}
-	case "json":
+	case JSONFormat:
 		err := json.NewDecoder(r).Decode(o)
 		if err != nil {
 			return fmt.Errorf("decode json: %w", err)
+		}
+	case HUJSONFormat:
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("decode hujson: %w", err)
+		}
+
+		data, err = hujson.Standardize(data)
+		if err != nil {
+			return fmt.Errorf("decode hujson: %w", err)
+		}
+
+		err = json.Unmarshal(data, o)
+		if err != nil {
+			return fmt.Errorf("decode hujson: %w", err)
 		}
 	default:
 		return fmt.Errorf("unsupported config file format: %s", format)
