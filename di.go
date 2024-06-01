@@ -8,4 +8,5 @@ var Wires = wire.NewSet(
 	ProvideEcho,
 	ProvideSQLX,
 	ProvideMigrate,
+	ProvideEmbbededMigrate,
 )
