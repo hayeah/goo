@@ -3,13 +3,12 @@ package goo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/rs/zerolog"
 )
 
 func GracefulExit() {
@@ -30,7 +29,7 @@ type ShutdownContext struct {
 	mu        sync.Mutex
 	wg        sync.WaitGroup
 	waitCount int64
-	logger    *zerolog.Logger
+	logger    *slog.Logger
 }
 
 func (c *ShutdownContext) doExit() {
@@ -49,6 +48,7 @@ func (c *ShutdownContext) doExit() {
 
 func (c *ShutdownContext) waitBlocks() {
 	// c.log.Debug().Msg("waiting for exit blocks")
+	log := c.logger
 
 	// if exit blocks take longer than 5 seconds, start logging progress
 	go func() {
@@ -58,7 +58,7 @@ func (c *ShutdownContext) waitBlocks() {
 				return
 			}
 
-			c.logger.Debug().Int64("count", count).Msg("waiting for exit blocks")
+			log.Debug("waiting for exit blocks", "count", count)
 
 			time.Sleep(3 * time.Second)
 		}
@@ -68,15 +68,17 @@ func (c *ShutdownContext) waitBlocks() {
 }
 
 func (c *ShutdownContext) runExitFns() {
+	log := c.logger
+
 	if len(c.exitFns) > 0 {
-		c.logger.Debug().Int("count", len(c.exitFns)).Msg("run exit handlers")
+		log.Debug("running exit functions", "count", len(c.exitFns))
 	}
 
 	for _, fn := range c.exitFns {
 		err := fn()
 
 		if err != nil {
-			c.logger.Debug().Err(err).Msg("exit function errors")
+			log.Debug("exit function error", "error", err.Error())
 		}
 
 	}
@@ -119,10 +121,7 @@ func (c *ShutdownContext) OnExit(fn func() error) {
 var exitCtx *ShutdownContext
 var exitCtxOnce sync.Once
 
-func ProvideShutdownContext() (*ShutdownContext, error) {
-
-	log := zerolog.DefaultContextLogger
-
+func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
 	// enforce that exitCtx is initialized once
 	exitCtxOnce.Do(func() {
 		bg := context.Background()
@@ -144,7 +143,7 @@ func ProvideShutdownContext() (*ShutdownContext, error) {
 					cancel()
 				}
 
-				exitCtx.logger.Debug().Int("countdown", 3-i).Msg("graceful exit. 3 sigints to exit immediately")
+				log.Debug("graceful exit. 3 sigints to exit immediately", "countdown", 3-i)
 
 				i++
 

@@ -2,13 +2,9 @@ package goo
 
 import (
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"reflect"
-
-	"github.com/rs/zerolog"
-
-	"github.com/rs/zerolog/log"
 )
 
 type Named interface {
@@ -26,9 +22,8 @@ func InterfaceName(o interface{}) string {
 }
 
 // TypedLogger returns a logger that adds "_type" to its logging context
-func TypedLogger(log *zerolog.Logger, srv interface{}) *zerolog.Logger {
-	pdlog := log.With().Str("_type", InterfaceName(srv)).Logger()
-	return &pdlog
+func TypedLogger(log *slog.Logger, srv interface{}) *slog.Logger {
+	return log.With("_type", InterfaceName(srv))
 }
 
 type LoggerConfig struct {
@@ -37,57 +32,25 @@ type LoggerConfig struct {
 	LogFormat string // json, console
 }
 
-func ProvideZeroLogger(goocfg *Config, shutdown *ShutdownContext) (*zerolog.Logger, error) {
-	if goocfg.Logging == nil {
-		return nil, fmt.Errorf("no logging configuration")
+func ProvideSlog(cfg *Config) (*slog.Logger, error) {
+	var level slog.Level
+
+	err := level.UnmarshalText([]byte(cfg.Logging.LogLevel))
+	if err != nil {
+		return nil, fmt.Errorf("provide slog: %w", err)
 	}
 
-	cfg := goocfg.Logging
+	var handler slog.Handler
+	handlerOptions := &slog.HandlerOptions{Level: level}
 
-	// configure timestamp etc...
-	log := log.Logger
-
-	if cfg.LogLevel == "" {
-		log = log.Level(zerolog.InfoLevel)
-	} else {
-		level, err := zerolog.ParseLevel(cfg.LogLevel)
-		if err != nil {
-			return nil, err
-		}
-
-		log = log.Level(level)
-	}
-
-	var out io.Writer = os.Stderr
-
-	if cfg.LogFile != "" {
-		file, err := os.OpenFile(
-			cfg.LogFile,
-			os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-			0664,
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		out = file
-
-		shutdown.OnExit(func() error {
-			return file.Close()
-		})
-	}
-
-	switch cfg.LogFormat {
-	case "", "json":
-		log = log.Output(out)
-	case "console":
-		log = log.Output(zerolog.ConsoleWriter{Out: out})
+	switch cfg.Logging.LogFormat {
+	case "json":
+		handler = slog.NewJSONHandler(os.Stderr, handlerOptions)
 	default:
-		return nil, fmt.Errorf("unsupported log format: %s", cfg.LogFormat)
+		handler = slog.NewTextHandler(os.Stderr, handlerOptions)
 	}
 
-	shutdown.logger = &log
+	log := slog.New(handler)
 
-	return &log, nil
+	return log, nil
 }

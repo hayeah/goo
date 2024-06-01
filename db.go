@@ -5,13 +5,13 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jmoiron/sqlx"
-	"github.com/rs/zerolog"
 )
 
 type DatabaseConfig struct {
@@ -22,7 +22,7 @@ type DatabaseConfig struct {
 	MigrationsRunManually bool
 }
 
-func ProvideSQLX(goocfg *Config, down *ShutdownContext, log *zerolog.Logger) (*sqlx.DB, error) {
+func ProvideSQLX(goocfg *Config, down *ShutdownContext, log *slog.Logger) (*sqlx.DB, error) {
 	if goocfg.Database == nil {
 		return nil, fmt.Errorf("no database configuration")
 	}
@@ -35,7 +35,7 @@ func ProvideSQLX(goocfg *Config, down *ShutdownContext, log *zerolog.Logger) (*s
 	}
 
 	down.OnExit(func() error {
-		log.Debug().Str("db", cfg.DSN).Msg("closing database connection")
+		log.Debug("closing database connection", "db", cfg.DSN)
 		return db.Close()
 	})
 

@@ -4,7 +4,7 @@ import "github.com/google/wire"
 
 var Wires = wire.NewSet(
 	ProvideShutdownContext,
-	ProvideZeroLogger,
+	ProvideSlog,
 	ProvideEcho,
 	ProvideSQLX,
 	ProvideMigrate,

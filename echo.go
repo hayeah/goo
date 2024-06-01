@@ -1,12 +1,12 @@
 package goo
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/rs/zerolog"
-	"github.com/ziflex/lecho/v3"
+	slogecho "github.com/samber/slog-echo"
 )
 
 type EchoConfig struct {
@@ -20,12 +20,11 @@ func NewEcho() *echo.Echo {
 	return e
 }
 
-func getCustomHTTPErrorHandler(logger *zerolog.Logger) echo.HTTPErrorHandler {
+func getCustomHTTPErrorHandler(log *slog.Logger) echo.HTTPErrorHandler {
 	return func(err error, c echo.Context) {
-		logger.Debug().
-			Stringer("url", c.Request().URL).
-			Err(err).
-			Msg("HTTP error")
+		log.Debug("HTTP error",
+			"url", c.Request().URL,
+			"error", err)
 
 		code := http.StatusInternalServerError
 
@@ -40,13 +39,15 @@ func getCustomHTTPErrorHandler(logger *zerolog.Logger) echo.HTTPErrorHandler {
 	}
 }
 
-func ProvideEcho(logger *zerolog.Logger) *echo.Echo {
+func ProvideEcho(baselog *slog.Logger) *echo.Echo {
 	e := NewEcho()
 
-	echolog := logger.With().Str("_type", "Echo").Logger()
+	log := baselog.With("_type", "Echo")
 
-	e.Logger = lecho.From(echolog)
-	e.HTTPErrorHandler = getCustomHTTPErrorHandler(&echolog)
+	// e.Logger = lecho.From(echolog)
+	e.HTTPErrorHandler = getCustomHTTPErrorHandler(log)
+
+	e.Use(slogecho.New(log))
 
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
