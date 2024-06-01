@@ -16,7 +16,6 @@ require (
 	github.com/samber/slog-echo v1.14.1
 	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a
 	github.com/tidwall/gjson v1.17.1
-	github.com/titanous/json5 v1.0.0
 )
 
 require (
