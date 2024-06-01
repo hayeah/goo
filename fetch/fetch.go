@@ -4,24 +4,24 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
+	"io"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hayeah/goo/sse"
 	"github.com/tidwall/gjson"
 )
 
 type HTTPError struct {
 	StatusCode int
 	Status     string
-	Body       []byte
 }
 
 func (e *HTTPError) Error() string {
 	return fmt.Sprintf("http error: %s", e.Status)
 }
 
-func New(c *resty.Client) *Client {
-	return &Client{c}
+func New(c *resty.Client) Client {
+	return Client{c}
 }
 
 type Client struct {
@@ -33,14 +33,36 @@ func (c *Client) R() *Request {
 	return &Request{c.Client.R()}
 }
 
-// Get
-func (c *Client) Get(url string, opts *Options) (*Response, error) {
-	return c.R().JSON(http.MethodGet, url, opts)
+func (c *Client) JSON(method, url string, opts *Options) (*Response, error) {
+	return c.R().JSON(method, url, opts)
 }
 
-// Post sends a POST request
-func (c *Client) Post(url string, opts *Options) (*Response, error) {
-	return c.R().JSON(http.MethodPost, url, opts)
+type SSEResponse struct {
+	*Response
+	*sse.Scanner
+}
+
+func (r *SSEResponse) Close() error {
+	return r.Scanner.Close()
+}
+
+func (c *Client) SSE(method string, url string, opts *Options) (*SSEResponse, error) {
+
+	var opts2 Options
+	if opts != nil {
+		opts2 = *opts
+	}
+
+	opts2.RawResponseBody = true
+
+	res, err := c.R().JSON(method, url, &opts2)
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := sse.NewScanner(res.RawBody(), false)
+
+	return &SSEResponse{res, scanner}, nil
 }
 
 type Options struct {
@@ -48,6 +70,10 @@ type Options struct {
 
 	Body       any
 	BodyParams any
+
+	RawResponseBody bool
+
+	PathParams any // map[string]string
 }
 
 // Body returns the body of the request. If the body is a template, it will be rendered.
@@ -59,8 +85,16 @@ func (o *Options) RenderBody() ([]byte, error) {
 		default:
 			return nil, errors.New("body should be a string template")
 		}
-	} else if o.Body == nil {
-		return json.Marshal(o.Body)
+	} else if o.Body != nil {
+		switch body := o.Body.(type) {
+		case string:
+			return []byte(body), nil
+		case []byte:
+			return body, nil
+		default:
+			return json.Marshal(o.Body)
+		}
+
 	}
 
 	return nil, nil
@@ -75,9 +109,25 @@ func (r *Request) JSON(method, url string, opts *Options) (*Response, error) {
 		opts = &Options{}
 	}
 
+	if opts.RawResponseBody {
+		r.SetDoNotParseResponse(true)
+	}
+
 	body, err := opts.RenderBody()
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.PathParams != nil {
+		switch opts.PathParams.(type) {
+		case map[string]string:
+			r.SetPathParams(opts.PathParams.(map[string]string))
+		default:
+			// TODO: use mapstructure to convert to map[string]string
+			// github.com/mitchellh/mapstructure
+			return nil, errors.New("path params should be map[string]string")
+		}
+
 	}
 
 	r.SetHeader("Content-Type", "application/json")
@@ -96,13 +146,12 @@ func (r *Request) JSON(method, url string, opts *Options) (*Response, error) {
 	}
 
 	// return http status error
-	if res.IsError() {
-		err = &HTTPError{
-			StatusCode: res.StatusCode(),
-			Status:     res.Status(),
-			Body:       res.Body(),
-		}
-	}
+	// if res.IsError() {
+	// 	err = &HTTPError{
+	// 		StatusCode: res.StatusCode(),
+	// 		Status:     res.Status(),
+	// 	}
+	// }
 
 	return &Response{res}, err
 }
@@ -114,6 +163,33 @@ type Response struct {
 func (r *Response) JSON() []byte {
 	// TODO: check json content type
 	return r.Body()
+}
+
+func (r *Response) String() string {
+	//
+	body := r.Body()
+	if body == nil {
+		//
+		data, err := io.ReadAll(r.RawBody())
+
+		if err != nil {
+			r.Request.SetError(err)
+		}
+		// r.SetBody(data)
+
+		// r.Request.SetError(errors.New("body is nil")
+		return string(data)
+	}
+
+	return string(r.Body())
+}
+
+func (r *Response) Close() error {
+	if r != nil {
+		return r.Response.RawBody().Close()
+	}
+
+	return nil
 }
 
 // GJSON queries body
