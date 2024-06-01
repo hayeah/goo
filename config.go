@@ -24,6 +24,8 @@ func ParseArgs[T any]() (*T, error) {
 	return &o, nil
 }
 
+var ErrNoConfig = fmt.Errorf("no config is found")
+
 func ParseConfig[T any](prefix string) (*T, error) {
 	prefix = strings.ToUpper(prefix)
 
@@ -52,5 +54,5 @@ func ParseConfig[T any](prefix string) (*T, error) {
 		return &o, err
 	}
 
-	return nil, fmt.Errorf("no config is found. Try setting %sCONFIG_FILE", prefix)
+	return nil, fmt.Errorf("%w: try setting %sCONFIG_FILE", ErrNoConfig, prefix)
 }
