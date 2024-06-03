@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
+	"strings"
 )
 
 type Named interface {
@@ -33,9 +34,13 @@ type LoggerConfig struct {
 }
 
 func ProvideSlog(cfg *Config) (*slog.Logger, error) {
-	var level slog.Level
+	lvlText := strings.TrimSpace(strings.ToUpper(cfg.Logging.LogLevel))
+	if lvlText == "" {
+		lvlText = "INFO"
+	}
 
-	err := level.UnmarshalText([]byte(cfg.Logging.LogLevel))
+	var level slog.Level
+	err := level.UnmarshalText([]byte(lvlText))
 	if err != nil {
 		return nil, fmt.Errorf("provide slog: %w", err)
 	}
