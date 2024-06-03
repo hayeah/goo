@@ -14,6 +14,7 @@ require (
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/pelletier/go-toml/v2 v2.2.0
 	github.com/samber/slog-echo v1.14.1
+	github.com/stretchr/testify v1.9.0
 	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a
 	github.com/tidwall/gjson v1.17.1
 )
@@ -29,7 +30,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/samber/lo v1.38.1 // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
