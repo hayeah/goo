@@ -13,6 +13,118 @@ import (
 	"github.com/hayeah/goo/fetch/v2"
 )
 
+func TestRenderBody(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("with nil BodyParams and nil Body", func(t *testing.T) {
+		opts := fetch.Options{}
+		body, err := opts.RenderBody()
+		assert.NoError(err)
+		assert.Nil(body)
+	})
+
+	t.Run("with string Body and nil BodyParams", func(t *testing.T) {
+		opts := fetch.Options{
+			Body: "test body",
+		}
+		body, err := opts.RenderBody()
+		assert.NoError(err)
+		assert.Equal([]byte("test body"), body)
+	})
+
+	t.Run("with []byte Body and nil BodyParams", func(t *testing.T) {
+		opts := fetch.Options{
+			Body: []byte("test body"),
+		}
+		body, err := opts.RenderBody()
+		assert.NoError(err)
+		assert.Equal([]byte("test body"), body)
+	})
+
+	t.Run("with struct Body and nil BodyParams", func(t *testing.T) {
+		type RequestBody struct {
+			Key string `json:"key"`
+		}
+
+		opts := fetch.Options{
+			Body: RequestBody{Key: "value"},
+		}
+		body, err := opts.RenderBody()
+		assert.NoError(err)
+		assert.JSONEq(`{"key":"value"}`, string(body))
+	})
+
+	t.Run("with string Body and BodyParams", func(t *testing.T) {
+		opts := fetch.Options{
+			Body:       `{"key": {{Key}}}`,
+			BodyParams: map[string]string{"Key": "value"},
+		}
+		body, err := opts.RenderBody()
+		assert.NoError(err)
+		assert.JSONEq(`{"key":"value"}`, string(body))
+	})
+
+	t.Run("with string BodyParams but non-string Body", func(t *testing.T) {
+		opts := fetch.Options{
+			Body:       123,
+			BodyParams: map[string]string{"Key": "value"},
+		}
+		body, err := opts.RenderBody()
+		assert.Error(err)
+		assert.Nil(body)
+	})
+}
+
+func TestNewRequest_RenderBodyIntegration(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("with valid Body and BodyParams", func(t *testing.T) {
+		opts := &fetch.Options{
+			Method:     http.MethodPost,
+			Body:       `{"key": {{Key}} }`,
+			BodyParams: map[string]string{"Key": "value"},
+			Header:     http.Header{"Content-Type": {"application/json"}},
+		}
+
+		req, err := fetch.NewRequest("http://example.com/api/v1/resource", opts)
+		assert.NoError(err)
+		assert.NotNil(req)
+		assert.Equal("http://example.com/api/v1/resource", req.URL.String())
+		assert.Equal(http.MethodPost, req.Method)
+		assert.Equal("application/json", req.Header.Get("Content-Type"))
+		body, _ := io.ReadAll(req.Body)
+		assert.JSONEq(`{"key":"value"}`, string(body))
+	})
+
+	t.Run("with invalid BodyParams", func(t *testing.T) {
+		opts := &fetch.Options{
+			Method:     http.MethodPost,
+			Body:       123,
+			BodyParams: map[string]string{"Key": "value"},
+			Header:     http.Header{"Content-Type": {"application/json"}},
+		}
+
+		req, err := fetch.NewRequest("http://example.com/api/v1/resource", opts)
+		assert.Error(err)
+		assert.Nil(req)
+	})
+
+	t.Run("with nil Body and BodyParams", func(t *testing.T) {
+		opts := &fetch.Options{
+			Method: http.MethodPost,
+			Header: http.Header{"Content-Type": {"application/json"}},
+		}
+
+		req, err := fetch.NewRequest("http://example.com/api/v1/resource", opts)
+		assert.NoError(err)
+		assert.NotNil(req)
+		assert.Equal("http://example.com/api/v1/resource", req.URL.String())
+		assert.Equal(http.MethodPost, req.Method)
+		assert.Equal("application/json", req.Header.Get("Content-Type"))
+		assert.Nil(req.Body)
+	})
+}
+
 var commonOpts = &fetch.Options{
 	BaseURL: "http://example.com",
 	Client:  &http.Client{},

@@ -1,29 +1,54 @@
 package fetch
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/tidwall/gjson"
 )
 
 // URLParams map[string]string
-// BodyParams any
 
 type Options struct {
 	BaseURL    string
 	PathParams any
 
-	Method string
-	Header http.Header
-	Body   string
+	Method     string
+	Header     http.Header
+	Body       any // []byte | string
+	BodyParams any
 
 	Client  *http.Client
 	Context context.Context
+}
+
+// Body returns the body of the request. If the body is a template, it will be rendered.
+func (o *Options) RenderBody() ([]byte, error) {
+	if o.BodyParams != nil {
+		switch body := o.Body.(type) {
+		case string:
+			return RenderJSON(body, o.BodyParams)
+		default:
+			return nil, errors.New("body should be a string template")
+		}
+	} else if o.Body != nil {
+		switch body := o.Body.(type) {
+		case string:
+			return []byte(body), nil
+		case []byte:
+			return body, nil
+		default:
+			return json.Marshal(o.Body)
+		}
+
+	}
+
+	return nil, nil
 }
 
 func (o *Options) SetHeader(key, value string) {
@@ -82,8 +107,17 @@ func NewRequest(resource string, opts *Options) (*http.Request, error) {
 		method = http.MethodGet
 	}
 
-	body := strings.NewReader(opts.Body)
-	req, err := http.NewRequestWithContext(ctx, method, resource, body)
+	body, err := opts.RenderBody()
+	if err != nil {
+		return nil, err
+	}
+
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = io.NopCloser(bytes.NewReader(body))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, resource, bodyReader)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +161,11 @@ func (r *JSONResponse) String() string {
 }
 
 func JSON(resource string, opts *Options) (*JSONResponse, error) {
+	// set content type to json is not set
+	// if opts.Header.Get("Content-Type") == "" {
+	// 	opts.SetHeader("Content-Type", "application/json")
+	// }
+
 	res, err := opts.Do(resource)
 	if err != nil {
 		return nil, err

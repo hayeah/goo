@@ -6,6 +6,53 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type UserData struct {
+	Name string
+	Age  int
+}
+
+func TestRenderJSON(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		template string
+		data     interface{}
+		expected string
+	}{
+		{
+			template: `{"user_id": {{UserID}}, "book_id": {{BookID}}}`,
+			data:     map[string]interface{}{"UserID": "123", "BookID": "456"},
+			expected: `{"user_id": "123", "book_id": "456"}`,
+		},
+
+		{
+			template: `{"name": {{Name}}, "age": {{Age}}}`,
+			data:     UserData{Name: "Alice", Age: 25},
+			expected: `{"name": "Alice", "age": 25}`,
+		},
+
+		{
+			template: `
+			{"list": [
+				{{#.}} 
+				{ "name": {{Name}} }, 
+				{{/.}}
+			]} `,
+			data: []UserData{
+				{Name: "Alice", Age: 25},
+				{Name: "Bob", Age: 30},
+			},
+			expected: `{"list": [{"name": "Alice"}, {"name": "Bob"}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		result, err := RenderJSON(tt.template, tt.data)
+		assert.NoError(err)
+		assert.JSONEq(tt.expected, string(result))
+	}
+}
+
 func TestRenderURLPath(t *testing.T) {
 	assert := assert.New(t)
 
@@ -34,7 +81,6 @@ func TestRenderURLPath(t *testing.T) {
 	for _, tt := range tests {
 		result, err := RenderURLPath(tt.path, tt.data)
 		assert.NoError(err)
-
-		assert.Equal(tt.expected, result, "they should be equal")
+		assert.Equal(tt.expected, result)
 	}
 }
