@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/hayeah/goo/fetch/v2"
+	"github.com/hayeah/goo/fetch"
 )
 
 func TestRenderBody(t *testing.T) {
