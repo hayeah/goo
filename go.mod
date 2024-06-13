@@ -5,7 +5,6 @@ go 1.22.1
 require (
 	github.com/alexflint/go-arg v1.4.3
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-resty/resty/v2 v2.13.1
 	github.com/gocarina/gocsv v0.0.0-20231116093920-b87c2d0e983a
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/google/wire v0.6.0
