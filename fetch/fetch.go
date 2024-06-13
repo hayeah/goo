@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/hayeah/goo/sse"
+	"github.com/hayeah/goo/fetch/sse"
 	"github.com/tidwall/gjson"
 )
 
