@@ -275,13 +275,7 @@ func JSON(method, resource string, opts *Options) (*JSONResponse, error) {
 }
 
 type SSEResponse struct {
-	*http.Response
 	*sse.Scanner
-}
-
-// IsError
-func (r *SSEResponse) IsError() bool {
-	return r.StatusCode >= 400
 }
 
 func (r *SSEResponse) Close() error {
@@ -294,7 +288,18 @@ func SSE(method, resource string, opts *Options) (*SSEResponse, error) {
 		return nil, err
 	}
 
-	scanner := sse.NewScanner(res.Body, false)
+	if res.StatusCode >= 400 {
+		defer res.Body.Close()
 
-	return &SSEResponse{res, scanner}, nil
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		jres := &JSONResponse{response: res, body: body}
+		return nil, &JSONError{jres}
+	}
+
+	scanner := sse.NewScanner(res.Body, false)
+	return &SSEResponse{scanner}, nil
 }
