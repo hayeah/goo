@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 
+	"github.com/hayeah/goo/sse"
 	"github.com/tidwall/gjson"
 )
 
@@ -76,6 +78,89 @@ func (o *Options) Do(resource string) (*http.Response, error) {
 	return client.Do(req)
 }
 
+// GetJSON creates a new request and executes it as a JSON request.
+func (o *Options) GetJSON(resource string, opts *Options) (*JSONResponse, error) {
+	opts2 := o.Merge(opts)
+
+	opts2.Method = http.MethodGet
+	if opts2.Body != nil {
+		return nil, errors.New("GET request cannot have a body")
+	}
+
+	return JSON(resource, opts2)
+}
+
+// JSON creates a new request and executes it as a JSON request.
+func (o *Options) JSON(resource string, opts *Options) (*JSONResponse, error) {
+	opts2 := o.Merge(opts)
+	return JSON(resource, opts2)
+}
+
+// SSE creates a new request and executes it as an SSE request.
+func (o *Options) SSE(resource string, opts *Options) (*SSEResponse, error) {
+	opts2 := o.Merge(opts)
+	return SSE(resource, opts2)
+}
+
+// Clone creates a deep copy of the Options.
+func (o *Options) Clone() *Options {
+	// Create a new Options struct and copy the basic fields
+	clone := &Options{
+		BaseURL:    o.BaseURL,
+		PathParams: o.PathParams,
+		Method:     o.Method,
+		Header:     o.Header.Clone(), // Deep copy of headers
+		Body:       o.Body,
+		BodyParams: o.BodyParams,
+		Client:     o.Client,
+		Context:    o.Context,
+	}
+
+	return clone
+}
+
+// Merge merges the options with another set of options.
+func (o *Options) Merge(opts *Options) *Options {
+	// Clone the current options
+	merged := o.Clone()
+
+	if opts == nil {
+		return o
+	}
+
+	// Merge non-empty fields from opts into merged
+	if opts.BaseURL != "" {
+		merged.BaseURL = opts.BaseURL
+	}
+	if opts.PathParams != nil {
+		merged.PathParams = opts.PathParams
+	}
+	if opts.Method != "" {
+		merged.Method = opts.Method
+	}
+	if opts.Header != nil {
+		for key, values := range opts.Header {
+			for _, value := range values {
+				merged.Header.Add(key, value)
+			}
+		}
+	}
+
+	if opts.Body != nil {
+		merged.Body = opts.Body
+	}
+	if opts.BodyParams != nil {
+		merged.BodyParams = opts.BodyParams
+	}
+	if opts.Client != nil {
+		merged.Client = opts.Client
+	}
+	if opts.Context != nil {
+		merged.Context = opts.Context
+	}
+
+	return merged
+}
 func NewRequest(resource string, opts *Options) (*http.Request, error) {
 	var err error
 
@@ -114,8 +199,10 @@ func NewRequest(resource string, opts *Options) (*http.Request, error) {
 
 	var bodyReader io.Reader
 	if body != nil {
-		bodyReader = io.NopCloser(bytes.NewReader(body))
+		bodyReader = bytes.NewReader(body)
 	}
+
+	// fmt.Printf("%s %s\n", method, resource)
 
 	req, err := http.NewRequestWithContext(ctx, method, resource, bodyReader)
 	if err != nil {
@@ -127,7 +214,7 @@ func NewRequest(resource string, opts *Options) (*http.Request, error) {
 }
 
 type JSONResponse struct {
-	*http.Response
+	response *http.Response
 
 	body []byte
 }
@@ -160,24 +247,74 @@ func (r *JSONResponse) String() string {
 	return string(r.body)
 }
 
+type JSONError struct {
+	// StatusCode int
+	// Status     string
+	// Body     []byte
+	// Response *http.Response
+	*JSONResponse
+}
+
+func (e *JSONError) Error() string {
+	return fmt.Sprintf("fetch JSON error: %d %s", e.response.StatusCode, e.response.Status)
+}
+
+// String returns the body of the response as a string.
+func (e *JSONError) String() string {
+	return string(e.body)
+}
+
 func JSON(resource string, opts *Options) (*JSONResponse, error) {
 	// set content type to json is not set
 	// if opts.Header.Get("Content-Type") == "" {
 	// 	opts.SetHeader("Content-Type", "application/json")
 	// }
-
 	res, err := opts.Do(resource)
 	if err != nil {
 		return nil, err
 	}
+	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	return &JSONResponse{
-		Response: res,
+	jres := &JSONResponse{
+		response: res,
 		body:     body,
-	}, nil
+	}
+
+	if res.StatusCode >= 400 {
+		err = &JSONError{jres}
+		return nil, err
+	}
+
+	return jres, nil
+
+}
+
+type SSEResponse struct {
+	*http.Response
+	*sse.Scanner
+}
+
+// IsError
+func (r *SSEResponse) IsError() bool {
+	return r.StatusCode >= 400
+}
+
+func (r *SSEResponse) Close() error {
+	return r.Scanner.Close()
+}
+
+func SSE(resource string, opts *Options) (*SSEResponse, error) {
+	res, err := opts.Do(resource)
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := sse.NewScanner(res.Body, false)
+
+	return &SSEResponse{res, scanner}, nil
 }

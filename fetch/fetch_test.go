@@ -13,6 +13,90 @@ import (
 	"github.com/hayeah/goo/fetch"
 )
 
+func TestOptionsCloneAndMerge(t *testing.T) {
+	tests := []struct {
+		name     string
+		original *fetch.Options
+		merge    *fetch.Options
+		expected *fetch.Options
+	}{
+		{
+			name: "Merge non-empty fields",
+			original: &fetch.Options{
+				BaseURL: "https://original.com",
+				Method:  http.MethodGet,
+				Header:  http.Header{"X-Original-Header": {"original-value"}},
+			},
+			merge: &fetch.Options{
+				BaseURL: "https://merged.com",
+				Method:  http.MethodPost,
+				Header:  http.Header{"X-Merged-Header": {"merged-value"}},
+			},
+			expected: &fetch.Options{
+				BaseURL: "https://merged.com",
+				Method:  http.MethodPost,
+				Header:  http.Header{"X-Original-Header": {"original-value"}, "X-Merged-Header": {"merged-value"}},
+			},
+		},
+		{
+			name: "Merge with empty merge options",
+			original: &fetch.Options{
+				BaseURL: "https://original.com",
+				Method:  http.MethodGet,
+			},
+			merge: &fetch.Options{},
+			expected: &fetch.Options{
+				BaseURL: "https://original.com",
+				Method:  http.MethodGet,
+			},
+		},
+		{
+			name: "Merge nil headers",
+			original: &fetch.Options{
+				BaseURL: "https://original.com",
+				Method:  http.MethodGet,
+			},
+			merge: &fetch.Options{
+				BaseURL: "https://merged.com",
+				Header:  nil,
+			},
+			expected: &fetch.Options{
+				BaseURL: "https://merged.com",
+				Method:  http.MethodGet,
+			},
+		},
+		{
+			name: "Merge body and body params",
+			original: &fetch.Options{
+				Body:       "original body",
+				BodyParams: map[string]string{"original": "param"},
+			},
+			merge: &fetch.Options{
+				Body:       "merged body",
+				BodyParams: map[string]string{"merged": "param"},
+			},
+			expected: &fetch.Options{
+				Body:       "merged body",
+				BodyParams: map[string]string{"merged": "param"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			// Test Clone
+			clone := tc.original.Clone()
+			assert.Equal(tc.original, clone, "Cloned options should be equal to original")
+
+			// Test Merge
+			merged := tc.original.Merge(tc.merge)
+			assert.Equal(tc.expected, merged, "Merged options should match expected options")
+		})
+	}
+}
+
 func TestRenderBody(t *testing.T) {
 	assert := assert.New(t)
 
