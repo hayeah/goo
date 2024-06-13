@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/hayeah/goo/sse"
 	"github.com/tidwall/gjson"
@@ -20,7 +21,6 @@ type Options struct {
 	BaseURL    string
 	PathParams any
 
-	Method     string
 	Header     http.Header
 	Body       any // []byte | string
 	BodyParams any
@@ -62,8 +62,10 @@ func (o *Options) SetHeader(key, value string) {
 }
 
 // Do creates a new request and executes it.
-func (o *Options) Do(resource string) (*http.Response, error) {
-	req, err := NewRequest(resource, o)
+func (o *Options) Do(method, resource string) (*http.Response, error) {
+	method = strings.ToUpper(method)
+
+	req, err := NewRequest(method, resource, o)
 	if err != nil {
 		return nil, err
 	}
@@ -78,28 +80,16 @@ func (o *Options) Do(resource string) (*http.Response, error) {
 	return client.Do(req)
 }
 
-// GetJSON creates a new request and executes it as a JSON request.
-func (o *Options) GetJSON(resource string, opts *Options) (*JSONResponse, error) {
-	opts2 := o.Merge(opts)
-
-	opts2.Method = http.MethodGet
-	if opts2.Body != nil {
-		return nil, errors.New("GET request cannot have a body")
-	}
-
-	return JSON(resource, opts2)
-}
-
 // JSON creates a new request and executes it as a JSON request.
-func (o *Options) JSON(resource string, opts *Options) (*JSONResponse, error) {
+func (o *Options) JSON(method, resource string, opts *Options) (*JSONResponse, error) {
 	opts2 := o.Merge(opts)
-	return JSON(resource, opts2)
+	return JSON(method, resource, opts2)
 }
 
 // SSE creates a new request and executes it as an SSE request.
-func (o *Options) SSE(resource string, opts *Options) (*SSEResponse, error) {
+func (o *Options) SSE(method, resource string, opts *Options) (*SSEResponse, error) {
 	opts2 := o.Merge(opts)
-	return SSE(resource, opts2)
+	return SSE(method, resource, opts2)
 }
 
 // Clone creates a deep copy of the Options.
@@ -108,7 +98,6 @@ func (o *Options) Clone() *Options {
 	clone := &Options{
 		BaseURL:    o.BaseURL,
 		PathParams: o.PathParams,
-		Method:     o.Method,
 		Header:     o.Header.Clone(), // Deep copy of headers
 		Body:       o.Body,
 		BodyParams: o.BodyParams,
@@ -135,9 +124,7 @@ func (o *Options) Merge(opts *Options) *Options {
 	if opts.PathParams != nil {
 		merged.PathParams = opts.PathParams
 	}
-	if opts.Method != "" {
-		merged.Method = opts.Method
-	}
+
 	if opts.Header != nil {
 		for key, values := range opts.Header {
 			for _, value := range values {
@@ -161,7 +148,7 @@ func (o *Options) Merge(opts *Options) *Options {
 
 	return merged
 }
-func NewRequest(resource string, opts *Options) (*http.Request, error) {
+func NewRequest(method, resource string, opts *Options) (*http.Request, error) {
 	var err error
 
 	if opts.PathParams != nil {
@@ -183,13 +170,6 @@ func NewRequest(resource string, opts *Options) (*http.Request, error) {
 		ctx = opts.Context
 	} else {
 		ctx = context.Background()
-	}
-
-	var method string
-	if opts.Method != "" {
-		method = opts.Method
-	} else {
-		method = http.MethodGet
 	}
 
 	body, err := opts.RenderBody()
@@ -264,12 +244,12 @@ func (e *JSONError) String() string {
 	return string(e.body)
 }
 
-func JSON(resource string, opts *Options) (*JSONResponse, error) {
+func JSON(method, resource string, opts *Options) (*JSONResponse, error) {
 	// set content type to json is not set
 	// if opts.Header.Get("Content-Type") == "" {
 	// 	opts.SetHeader("Content-Type", "application/json")
 	// }
-	res, err := opts.Do(resource)
+	res, err := opts.Do(method, resource)
 	if err != nil {
 		return nil, err
 	}
@@ -308,8 +288,8 @@ func (r *SSEResponse) Close() error {
 	return r.Scanner.Close()
 }
 
-func SSE(resource string, opts *Options) (*SSEResponse, error) {
-	res, err := opts.Do(resource)
+func SSE(method, resource string, opts *Options) (*SSEResponse, error) {
+	res, err := opts.Do(method, resource)
 	if err != nil {
 		return nil, err
 	}

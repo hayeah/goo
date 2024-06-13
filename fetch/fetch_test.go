@@ -24,17 +24,14 @@ func TestOptionsCloneAndMerge(t *testing.T) {
 			name: "Merge non-empty fields",
 			original: &fetch.Options{
 				BaseURL: "https://original.com",
-				Method:  http.MethodGet,
 				Header:  http.Header{"X-Original-Header": {"original-value"}},
 			},
 			merge: &fetch.Options{
 				BaseURL: "https://merged.com",
-				Method:  http.MethodPost,
 				Header:  http.Header{"X-Merged-Header": {"merged-value"}},
 			},
 			expected: &fetch.Options{
 				BaseURL: "https://merged.com",
-				Method:  http.MethodPost,
 				Header:  http.Header{"X-Original-Header": {"original-value"}, "X-Merged-Header": {"merged-value"}},
 			},
 		},
@@ -42,19 +39,16 @@ func TestOptionsCloneAndMerge(t *testing.T) {
 			name: "Merge with empty merge options",
 			original: &fetch.Options{
 				BaseURL: "https://original.com",
-				Method:  http.MethodGet,
 			},
 			merge: &fetch.Options{},
 			expected: &fetch.Options{
 				BaseURL: "https://original.com",
-				Method:  http.MethodGet,
 			},
 		},
 		{
 			name: "Merge nil headers",
 			original: &fetch.Options{
 				BaseURL: "https://original.com",
-				Method:  http.MethodGet,
 			},
 			merge: &fetch.Options{
 				BaseURL: "https://merged.com",
@@ -62,7 +56,6 @@ func TestOptionsCloneAndMerge(t *testing.T) {
 			},
 			expected: &fetch.Options{
 				BaseURL: "https://merged.com",
-				Method:  http.MethodGet,
 			},
 		},
 		{
@@ -164,13 +157,12 @@ func TestNewRequest_RenderBodyIntegration(t *testing.T) {
 
 	t.Run("with valid Body and BodyParams", func(t *testing.T) {
 		opts := &fetch.Options{
-			Method:     http.MethodPost,
 			Body:       `{"key": {{Key}} }`,
 			BodyParams: map[string]string{"Key": "value"},
 			Header:     http.Header{"Content-Type": {"application/json"}},
 		}
 
-		req, err := fetch.NewRequest("http://example.com/api/v1/resource", opts)
+		req, err := fetch.NewRequest("POST", "http://example.com/api/v1/resource", opts)
 		assert.NoError(err)
 		assert.NotNil(req)
 		assert.Equal("http://example.com/api/v1/resource", req.URL.String())
@@ -182,24 +174,22 @@ func TestNewRequest_RenderBodyIntegration(t *testing.T) {
 
 	t.Run("with invalid BodyParams", func(t *testing.T) {
 		opts := &fetch.Options{
-			Method:     http.MethodPost,
 			Body:       123,
 			BodyParams: map[string]string{"Key": "value"},
 			Header:     http.Header{"Content-Type": {"application/json"}},
 		}
 
-		req, err := fetch.NewRequest("http://example.com/api/v1/resource", opts)
+		req, err := fetch.NewRequest(http.MethodPost, "http://example.com/api/v1/resource", opts)
 		assert.Error(err)
 		assert.Nil(req)
 	})
 
 	t.Run("with nil Body and BodyParams", func(t *testing.T) {
 		opts := &fetch.Options{
-			Method: http.MethodPost,
 			Header: http.Header{"Content-Type": {"application/json"}},
 		}
 
-		req, err := fetch.NewRequest("http://example.com/api/v1/resource", opts)
+		req, err := fetch.NewRequest(http.MethodPost, "http://example.com/api/v1/resource", opts)
 		assert.NoError(err)
 		assert.NotNil(req)
 		assert.Equal("http://example.com/api/v1/resource", req.URL.String())
@@ -220,10 +210,9 @@ func TestNewRequest(t *testing.T) {
 
 	t.Run("with baseURL and URL", func(t *testing.T) {
 		opts := *commonOpts
-		opts.Method = http.MethodGet
 		opts.SetHeader("Content-Type", "application/json")
 
-		req, err := fetch.NewRequest("/api/v1/resource", &opts)
+		req, err := fetch.NewRequest(http.MethodGet, "/api/v1/resource", &opts)
 		assert.NoError(err)
 		assert.Equal("http://example.com/api/v1/resource", req.URL.String())
 		assert.Equal(http.MethodGet, req.Method)
@@ -234,7 +223,7 @@ func TestNewRequest(t *testing.T) {
 		opts := *commonOpts
 		opts.PathParams = map[string]interface{}{"key1": "value1", "key2": "value2"}
 
-		req, err := fetch.NewRequest("/api/v1/{{key1}}/{{key2}}", &opts)
+		req, err := fetch.NewRequest(http.MethodGet, "/api/v1/{{key1}}/{{key2}}", &opts)
 		assert.NoError(err)
 		assert.Equal("http://example.com/api/v1/value1/value2", req.URL.String())
 		assert.Equal(http.MethodGet, req.Method)
@@ -242,7 +231,6 @@ func TestNewRequest(t *testing.T) {
 
 	t.Run("with PathParams struct", func(t *testing.T) {
 		opts := *commonOpts
-		opts.Method = http.MethodGet
 		type PathParams struct {
 			Key1 string
 			Key2 string
@@ -250,7 +238,7 @@ func TestNewRequest(t *testing.T) {
 
 		opts.PathParams = PathParams{"value1", "value2"}
 
-		req, err := fetch.NewRequest("/api/v1/{{Key1}}/{{Key2}}", &opts)
+		req, err := fetch.NewRequest(http.MethodGet, "/api/v1/{{Key1}}/{{Key2}}", &opts)
 		assert.NoError(err)
 		assert.Equal("http://example.com/api/v1/value1/value2", req.URL.String())
 		assert.Equal(http.MethodGet, req.Method)
@@ -258,12 +246,11 @@ func TestNewRequest(t *testing.T) {
 
 	t.Run("without baseURL", func(t *testing.T) {
 		opts := &fetch.Options{
-			Method: http.MethodPost,
 			Header: http.Header{"Content-Type": {"application/json"}},
 			Body:   `{"key":"value"}`,
 		}
 
-		req, err := fetch.NewRequest("http://example.com/api/v1/resource", opts)
+		req, err := fetch.NewRequest(http.MethodPost, "http://example.com/api/v1/resource", opts)
 		assert.NoError(err)
 		assert.Equal("http://example.com/api/v1/resource", req.URL.String())
 		assert.Equal(http.MethodPost, req.Method)
@@ -277,20 +264,18 @@ func TestNewRequest(t *testing.T) {
 		defer cancel()
 
 		opts := *commonOpts
-		opts.Method = http.MethodGet
 		opts.Context = ctx
 
-		req, err := fetch.NewRequest("/api/v1/resource", &opts)
+		req, err := fetch.NewRequest(http.MethodGet, "/api/v1/resource", &opts)
 		assert.NoError(err)
 		assert.Equal(ctx, req.Context())
 	})
 
 	t.Run("without context", func(t *testing.T) {
 		opts := *commonOpts
-		opts.Method = http.MethodGet
 		opts.Context = nil
 
-		req, err := fetch.NewRequest("/api/v1/resource", &opts)
+		req, err := fetch.NewRequest(http.MethodGet, "/api/v1/resource", &opts)
 		assert.NoError(err)
 		assert.NotNil(req.Context())
 		assert.Equal(context.Background(), req.Context())
@@ -299,13 +284,13 @@ func TestNewRequest(t *testing.T) {
 	t.Run("invalid baseURL and URL", func(t *testing.T) {
 		opts := *commonOpts
 		opts.BaseURL = ":/invalid-url"
-		opts.Method = http.MethodGet
 
-		req, err := fetch.NewRequest("/api/v1/resource", &opts)
+		req, err := fetch.NewRequest(http.MethodGet, "/api/v1/resource", &opts)
 		assert.Error(err)
 		assert.Nil(req)
 	})
 }
+
 func TestJSON(t *testing.T) {
 	assert := assert.New(t)
 
@@ -331,9 +316,7 @@ func TestJSON(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(`{"data": 42 }`))
 			},
-			options: &fetch.Options{
-				Method: http.MethodGet,
-			},
+			options:        &fetch.Options{},
 			wantErr:        false,
 			expectedBody:   `{"data": 42 }`,
 			expectedDecode: TestData{},
@@ -344,10 +327,8 @@ func TestJSON(t *testing.T) {
 				w.WriteHeader(http.StatusNotFound)
 				w.Write([]byte(`{"error": "Not Found"}`))
 			},
-			options: &fetch.Options{
-				Method: http.MethodGet,
-			},
-			wantErr:        false,
+			options:        &fetch.Options{},
+			wantErr:        true,
 			expectedBody:   `{"error": "Not Found"}`,
 			expectedDecode: TestError{},
 		},
@@ -360,9 +341,14 @@ func TestJSON(t *testing.T) {
 
 			tt.options.BaseURL = server.URL
 
-			resp, err := fetch.JSON("/test", tt.options)
+			resp, err := fetch.JSON(http.MethodGet, "/test", tt.options)
 			if tt.wantErr {
 				assert.Error(err)
+
+				jsonErr, ok := err.(*fetch.JSONError)
+				assert.True(ok)
+
+				assert.JSONEq(tt.expectedBody, string(jsonErr.Body()))
 			} else {
 				assert.NoError(err)
 				assert.JSONEq(tt.expectedBody, string(resp.Body()))
