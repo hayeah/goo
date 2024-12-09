@@ -354,7 +354,7 @@ func TestJSON(t *testing.T) {
 				assert.JSONEq(tt.expectedBody, string(resp.Body()))
 				assert.JSONEq(tt.expectedBody, resp.String())
 
-				err = resp.Decode(&tt.expectedDecode)
+				err = resp.Unmarshal(&tt.expectedDecode)
 				assert.NoError(err)
 
 				decodedValue, err := json.Marshal(&tt.expectedDecode)

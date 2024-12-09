@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,11 +16,15 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+var discardLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
 // URLParams map[string]string
 
 type Options struct {
 	BaseURL    string
 	PathParams any
+
+	QueryParams url.Values
 
 	Header     http.Header
 	Body       any // []byte | string
@@ -27,6 +32,9 @@ type Options struct {
 
 	Client  *http.Client
 	Context context.Context
+
+	Unmarshal any
+	Logger    *slog.Logger
 }
 
 // Body returns the body of the request. If the body is a template, it will be rendered.
@@ -92,61 +100,48 @@ func (o *Options) SSE(method, resource string, opts *Options) (*SSEResponse, err
 	return SSE(method, resource, opts2)
 }
 
-// Clone creates a deep copy of the Options.
-func (o *Options) Clone() *Options {
-	// Create a new Options struct and copy the basic fields
-	clone := &Options{
-		BaseURL:    o.BaseURL,
-		PathParams: o.PathParams,
-		Header:     o.Header.Clone(), // Deep copy of headers
-		Body:       o.Body,
-		BodyParams: o.BodyParams,
-		Client:     o.Client,
-		Context:    o.Context,
+// Merge destructively fill in fields of opts with defaults
+func (o *Options) Merge(opts *Options) *Options {
+	if opts == nil {
+		opts = &Options{}
 	}
 
-	return clone
-}
-
-// Merge merges the options with another set of options.
-func (o *Options) Merge(opts *Options) *Options {
 	// Clone the current options
-	merged := o.Clone()
-
 	if opts == nil {
 		return o
 	}
 
 	// Merge non-empty fields from opts into merged
-	if opts.BaseURL != "" {
-		merged.BaseURL = opts.BaseURL
-	}
-	if opts.PathParams != nil {
-		merged.PathParams = opts.PathParams
+	if opts.BaseURL == "" {
+		opts.BaseURL = o.BaseURL
 	}
 
-	if opts.Header != nil {
-		for key, values := range opts.Header {
-			for _, value := range values {
-				merged.Header.Add(key, value)
-			}
+	if opts.Client == nil {
+		opts.Client = o.Client
+	}
+
+	if opts.Context == nil {
+		opts.Context = o.Context
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = o.Logger
+		if opts.Logger == nil {
+			opts.Logger = discardLogger
 		}
 	}
 
-	if opts.Body != nil {
-		merged.Body = opts.Body
-	}
-	if opts.BodyParams != nil {
-		merged.BodyParams = opts.BodyParams
-	}
-	if opts.Client != nil {
-		merged.Client = opts.Client
-	}
-	if opts.Context != nil {
-		merged.Context = opts.Context
+	if opts.Header != nil {
+		for key, values := range o.Header {
+			for _, value := range values {
+				opts.Header.Add(key, value)
+			}
+		}
+	} else {
+		opts.Header = o.Header
 	}
 
-	return merged
+	return opts
 }
 func NewRequest(method, resource string, opts *Options) (*http.Request, error) {
 	var err error
@@ -159,10 +154,8 @@ func NewRequest(method, resource string, opts *Options) (*http.Request, error) {
 	}
 
 	if opts.BaseURL != "" {
-		resource, err = url.JoinPath(opts.BaseURL, resource)
-		if err != nil {
-			return nil, err
-		}
+		// not using path.Join because it would escape the query params in the resource path
+		resource = strings.TrimRight(opts.BaseURL, "/") + "/" + strings.TrimLeft(resource, "/") + "?" + opts.QueryParams.Encode()
 	}
 
 	var ctx context.Context
@@ -177,12 +170,14 @@ func NewRequest(method, resource string, opts *Options) (*http.Request, error) {
 		return nil, err
 	}
 
+	if len(body) > 0 && opts.Header.Get("Content-Type") == "application/json" {
+		opts.Logger.Debug("fetch.NewRequest", "body", string(body))
+	}
+
 	var bodyReader io.Reader
 	if body != nil {
 		bodyReader = bytes.NewReader(body)
 	}
-
-	// fmt.Printf("%s %s\n", method, resource)
 
 	req, err := http.NewRequestWithContext(ctx, method, resource, bodyReader)
 	if err != nil {
@@ -199,8 +194,13 @@ type JSONResponse struct {
 	body []byte
 }
 
+// Response returns the original http.Response.
+func (r *JSONResponse) Response() *http.Response {
+	return r.response
+}
+
 // JSON decodes the JSON response from the server.
-func (r *JSONResponse) Decode(v interface{}) error {
+func (r *JSONResponse) Unmarshal(v interface{}) error {
 	return json.Unmarshal(r.body, v)
 }
 
@@ -209,9 +209,27 @@ func (r *JSONResponse) Body() []byte {
 	return r.body
 }
 
+// String returns the body of the response as a string.
+func (r *JSONResponse) String() string {
+	return string(r.body)
+}
+
 // Get queries json path using GJSON
 func (r *JSONResponse) Get(path string) GJSONResult {
+	if path == "" {
+		return GJSONResult{gjson.ParseBytes(r.body)}
+	}
 	return GJSONResult{gjson.GetBytes(r.body, path)}
+}
+
+// Pretty returns the body of the response as a pretty-printed string.
+func (r *JSONResponse) Pretty() string {
+	var buf bytes.Buffer
+	err := json.Indent(&buf, r.body, "", "  ")
+	if err != nil {
+		return r.String()
+	}
+	return buf.String()
 }
 
 type GJSONResult struct {
@@ -220,11 +238,6 @@ type GJSONResult struct {
 
 func (r GJSONResult) Unmarshal(o any) error {
 	return json.Unmarshal([]byte(r.Raw), o)
-}
-
-// String returns the body of the response as a string.
-func (r *JSONResponse) String() string {
-	return string(r.body)
 }
 
 type JSONError struct {
@@ -249,6 +262,9 @@ func JSON(method, resource string, opts *Options) (*JSONResponse, error) {
 	// if opts.Header.Get("Content-Type") == "" {
 	// 	opts.SetHeader("Content-Type", "application/json")
 	// }
+
+	opts.Logger.Debug("fetch.JSON", "method", method, "url", resource)
+
 	res, err := opts.Do(method, resource)
 	if err != nil {
 		return nil, err
@@ -265,9 +281,18 @@ func JSON(method, resource string, opts *Options) (*JSONResponse, error) {
 		body:     body,
 	}
 
+	if opts.Unmarshal != nil {
+		err = json.Unmarshal(body, opts.Unmarshal)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if res.StatusCode >= 400 {
+		opts.Logger.Debug("fetch.JSON error", "body", string(body))
 		err = &JSONError{jres}
-		return nil, err
+		return jres, err
 	}
 
 	return jres, nil
