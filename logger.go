@@ -6,6 +6,8 @@ import (
 	"os"
 	"reflect"
 	"strings"
+
+	"github.com/golang-cz/devslog"
 )
 
 type Named interface {
@@ -47,12 +49,17 @@ func ProvideSlog(cfg *Config) (*slog.Logger, error) {
 
 	var handler slog.Handler
 	handlerOptions := &slog.HandlerOptions{Level: level}
+	// handler = slog.NewTextHandler(os.Stderr, handlerOptions)
+
+	handler = devslog.NewHandler(os.Stdout, &devslog.Options{
+		HandlerOptions: handlerOptions,
+	})
 
 	switch cfg.Logging.LogFormat {
 	case "json":
 		handler = slog.NewJSONHandler(os.Stderr, handlerOptions)
-	default:
-		handler = slog.NewTextHandler(os.Stderr, handlerOptions)
+		// case "console":
+
 	}
 
 	log := slog.New(handler)
