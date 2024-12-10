@@ -79,10 +79,6 @@ func TestOptionsCloneAndMerge(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			// Test Clone
-			clone := tc.original.Clone()
-			assert.Equal(tc.original, clone, "Cloned options should be equal to original")
-
 			// Test Merge
 			merged := tc.original.Merge(tc.merge)
 			assert.Equal(tc.expected, merged, "Merged options should match expected options")

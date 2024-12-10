@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/hayeah/goo"
 	"github.com/hayeah/goo/fetch/sse"
 	"github.com/tidwall/gjson"
 )
@@ -42,7 +43,7 @@ func (o *Options) RenderBody() ([]byte, error) {
 	if o.BodyParams != nil {
 		switch body := o.Body.(type) {
 		case string:
-			return RenderJSON(body, o.BodyParams)
+			return goo.RenderJSON(body, o.BodyParams)
 		default:
 			return nil, errors.New("body should be a string template")
 		}

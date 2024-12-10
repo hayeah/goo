@@ -1,6 +1,8 @@
 module github.com/hayeah/goo
 
-go 1.22.1
+go 1.23
+
+toolchain go1.23.4
 
 require (
 	github.com/alexflint/go-arg v1.4.3
@@ -8,13 +10,13 @@ require (
 	github.com/gocarina/gocsv v0.0.0-20231116093920-b87c2d0e983a
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/google/wire v0.6.0
-	github.com/hayeah/mustache/v2 v2.0.0-20240526073138-f800fb7876ad
+	github.com/hayeah/mustache/v2 v2.0.0-20241210035343-2bb63c9d7eb9
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/pelletier/go-toml/v2 v2.2.0
 	github.com/samber/slog-echo v1.14.1
-	github.com/stretchr/testify v1.9.0
-	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a
+	github.com/stretchr/testify v1.10.0
+	github.com/tailscale/hujson v0.0.0-20241010212012-29efb4a0184b
 	github.com/tidwall/gjson v1.17.1
 )
 
