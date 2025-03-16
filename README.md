@@ -342,4 +342,19 @@ go e.Start(cfg.Echo.Listen)
    ```
 8. **Run** via `make run` (or `go run .` if you set env vars properly).  
 
-That’s it. You can then expand usage with more subcommands, extra config fields, advanced migrations, etc. The key pattern is that `goo` manages the standard bits—logging, config, DB, graceful exit—and you just wire them into your own app.
+
+## Example Makefile
+
+```
+.PHONY: wire run dev
+
+wire:
+	go run github.com/google/wire/cmd/wire .
+
+# make run ARGS="somefile.go --flag1 --flag2"
+run:
+	CONFIG_FILE=cfg.toml go run ./cmd $(ARGS)
+
+dev:
+	CONFIG_FILE=cfg.toml go run github.com/cortesi/modd/cmd/modd@latest
+```
