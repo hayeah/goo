@@ -1,8 +1,0 @@
-wire:
-    go run github.com/google/wire/cmd/wire .
-
-run *args:
-    CONFIG_FILE=cfg.toml go run ./cmd {{args}}
-
-dev:
-    CONFIG_FILE=cfg.toml go run github.com/cortesi/modd/cmd/modd@latest
