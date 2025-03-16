@@ -1,0 +1,14 @@
+[Database]
+
+Dialect = "sqlite3"
+DSN = "mem.db"
+MigrationsPath = "./migrations"
+
+[Logging]
+
+LogLevel = "trace"
+LogFormat = "console"
+
+[Echo]
+
+Listen = ":8000"
