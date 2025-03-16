@@ -7,7 +7,5 @@ var Wires = wire.NewSet(
 	ProvideSlog,
 	ProvideEcho,
 	ProvideSQLX,
-	ProvideMigrate,
-	ProvideEmbbededMigrate,
 	ProvideMain,
 )

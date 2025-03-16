@@ -9,7 +9,6 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/gocarina/gocsv v0.0.0-20231116093920-b87c2d0e983a
 	github.com/golang-cz/devslog v0.0.11
-	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/google/wire v0.6.0
 	github.com/hayeah/mustache/v2 v2.0.0-20241210035343-2bb63c9d7eb9
 	github.com/jmoiron/sqlx v1.4.0
@@ -26,8 +25,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/google/subcommands v1.2.0 // indirect
-	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -39,7 +36,6 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	go.opentelemetry.io/otel v1.19.0 // indirect
 	go.opentelemetry.io/otel/trace v1.19.0 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
 	golang.org/x/mod v0.14.0 // indirect

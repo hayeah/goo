@@ -2,15 +2,11 @@ package goo
 
 import (
 	"database/sql/driver"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -40,109 +36,6 @@ func ProvideSQLX(goocfg *Config, down *ShutdownContext, log *slog.Logger) (*sqlx
 	})
 
 	return db, err
-}
-
-// https://github.com/golang-migrate/migrate/blob/master/GETTING_STARTED.md
-// https://github.com/golang-migrate/migrate/blob/master/MIGRATIONS.md
-
-// ProvideMigrate provides a filesystem backed db migration.
-func ProvideMigrate(basecfg *Config) (*migrate.Migrate, error) {
-	if basecfg.Database == nil {
-		return nil, fmt.Errorf("no database configuration")
-	}
-
-	cfg := basecfg.Database
-
-	if cfg.MigrationsPath == "" {
-		return nil, fmt.Errorf("no MigrationsPath configured")
-	}
-
-	databaseURL := fmt.Sprintf("%s://file:%s", cfg.Dialect, cfg.DSN)
-	fileURL := fmt.Sprintf("file://%s", cfg.MigrationsPath)
-
-	m, err := migrate.New(fileURL, databaseURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if cfg.MigrationsRunManually {
-		return m, nil
-	}
-
-	err = m.Up()
-	if err == migrate.ErrNoChange {
-		err = nil
-	}
-
-	return m, nil
-}
-
-/*
-The benefit of embedding is to make it easier to distribute the application as a
-single binary. The embedded files are stored in the binary itself, so there is
-no need to distribute the migration files separately.
-
-//go:embed testdata/migrations/*.sql
-//var fs embed.FS
-
-*/
-
-type EmbbededMigrate migrate.Migrate
-
-type EmbeddedMigrateConfig struct {
-	FS        embed.FS
-	EmbedPath string
-}
-
-// ProvideEmbbededMigrate provides an embed.FS based db migration.
-func ProvideEmbbededMigrate(embedCfg *EmbeddedMigrateConfig, basecfg *Config) (*EmbbededMigrate, error) {
-	if basecfg.Database == nil {
-		return nil, fmt.Errorf("no database configuration")
-	}
-
-	cfg := basecfg.Database
-
-	fs, err := iofs.New(embedCfg.FS, embedCfg.EmbedPath)
-	if err != nil {
-		return nil, err
-	}
-
-	dsn := cfg.DSN
-	if cfg.Dialect == "sqlite3" {
-		// golang-migrate parses the DNS into URL first, which causes whitespaces to
-		// be escaped as `%20`. However, by default, sqlite3 does not treat the DSN
-		// as proper URL.
-		//
-		// To work around this, add the "file:" prefix to the DSN, and sqlite3 will
-		// treat it as proper URI, and "%20" will be treated as whitespace.
-		//
-		// https://github.com/golang-migrate/migrate/pull/500#discussion_r566560229
-		//
-		// They didn't actually fix this problem, but added a test case "as
-		// reference", lmao.
-		dsn = fmt.Sprintf("file:%s", cfg.DSN)
-	}
-
-	databaseURL := fmt.Sprintf("%s://%s", cfg.Dialect, dsn)
-
-	m, err := migrate.NewWithSourceInstance("iofs", fs, databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
-	}
-
-	if !cfg.MigrationsRunManually {
-		err = m.Up()
-		if err == migrate.ErrNoChange {
-			err = nil
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("migrate with embed: %w", err)
-		}
-	}
-
-	return (*EmbbededMigrate)(m), err
-
 }
 
 type JSONColumn[T any] struct {
