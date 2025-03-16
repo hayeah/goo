@@ -2,8 +2,11 @@
 
 package cli
 
-import "github.com/google/wire"
+import (
+	"github.com/google/wire"
+	"github.com/hayeah/goo"
+)
 
-func InitApp() (*App, error) {
-	panic(wire.Build(wires))
+func InitMain() (goo.Main, error) {
+	panic(wire.Build(Wires))
 }

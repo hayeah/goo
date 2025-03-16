@@ -5,13 +5,6 @@ import (
 )
 
 func main() {
-	app, err := cli.InitApp()
-	if err != nil {
-		panic(err)
-	}
-
-	err = app.Run()
-	if err != nil {
-		panic(err)
-	}
+	fn, _ := cli.InitMain()
+	fn()
 }

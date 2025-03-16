@@ -6,20 +6,43 @@
 
 package cli
 
+import (
+	"github.com/hayeah/goo"
+)
+
 // Injectors from wire.go:
 
-func InitApp() (*App, error) {
-	args, err := ProvideArgs()
-	if err != nil {
-		return nil, err
-	}
+func InitMain() (goo.Main, error) {
 	config, err := ProvideConfig()
 	if err != nil {
 		return nil, err
 	}
-	app := &App{
-		Args:   args,
-		Config: config,
+	gooConfig, err := ProvideGooConfig(config)
+	if err != nil {
+		return nil, err
 	}
-	return app, nil
+	logger, err := goo.ProvideSlog(gooConfig)
+	if err != nil {
+		return nil, err
+	}
+	args, err := ProvideArgs()
+	if err != nil {
+		return nil, err
+	}
+	shutdownContext, err := goo.ProvideShutdownContext(logger)
+	if err != nil {
+		return nil, err
+	}
+	db, err := goo.ProvideSQLX(gooConfig, shutdownContext, logger)
+	if err != nil {
+		return nil, err
+	}
+	app := &App{
+		Args:     args,
+		Config:   config,
+		Shutdown: shutdownContext,
+		DB:       db,
+	}
+	main := goo.ProvideMain(logger, app, shutdownContext)
+	return main, nil
 }

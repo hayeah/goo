@@ -7,7 +7,6 @@ package goo
 import (
 	"context"
 	"errors"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -19,9 +18,9 @@ import (
 
 // For testing purposes - these can be mocked
 var (
-	exitFunc    = os.Exit      // Production default
-	signalFunc  = signal.Notify // Production default
-	resetFunc   = signal.Reset  // Production default
+	exitFunc   = os.Exit       // Production default
+	signalFunc = signal.Notify // Production default
+	resetFunc  = signal.Reset  // Production default
 )
 
 // ShutdownContext extends context.Context to manage application shutdown.
@@ -147,6 +146,7 @@ var usingShutdownContext bool
 func gracefulExit(code int) {
 	// If no dependency requires ShutdownContext, then gracefulExit just do nothing.
 	if exitCtx == nil {
+		exitFunc(code)
 		return
 	}
 
@@ -223,49 +223,20 @@ func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
 	return exitCtx, nil
 }
 
-type Runner interface {
-	Run() error
+type Main func()
+
+func ProvideMain(log *slog.Logger, runner Runner, shutdown *ShutdownContext) Main {
+	return func() {
+		err := runner.Run()
+		if err != nil {
+			log.Error("runner error", "error", err)
+			shutdown.doExit(1)
+		}
+
+		shutdown.doExit(0)
+	}
 }
 
-// Main is a wrapper to initialize the shutdown context and run the application.
-//
-// Main serves as the primary entry point for applications using the goo package.
-// It initializes the application, runs it, and ensures graceful shutdown when
-// the application terminates or receives interrupt signals.
-//
-// The init function is typically a dependency injection function (like a Wire-generated
-// InitializeApp function) that creates and configures the application's components.
-//
-// Important: Always use goo.Main() as the entry point for your application, even if
-// your application doesn't explicitly use ShutdownContext. This ensures proper
-// signal handling and graceful shutdown capabilities are available if needed by
-// any part of your application or its dependencies.
-//
-// Example:
-//
-//	func main() {
-//	    goo.Main(app.InitializeApp)
-//	}
-//
-// Where InitializeApp is a function that returns a Runner implementation.
-func Main[T Runner](init func() (T, error)) {
-	// the init function is a wire injection.
-	//
-	// if any wire provider requires the shutdown context, we need to ensure that gracefulExit is called.
-
-	usingShutdownContext = true
-
-	runner, err := init()
-	if err != nil {
-		log.Println("init", err)
-		gracefulExit(1)
-	}
-
-	err = runner.Run()
-	if err != nil {
-		log.Println("run", err)
-		gracefulExit(1)
-	}
-
-	gracefulExit(0)
+type Runner interface {
+	Run() error
 }

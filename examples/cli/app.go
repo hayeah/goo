@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/wire"
 	"github.com/hayeah/goo"
+	"github.com/jmoiron/sqlx"
 )
 
 type Config struct {
@@ -40,8 +40,10 @@ type Args struct {
 }
 
 type App struct {
-	Args   *Args
-	Config *Config
+	Args     *Args
+	Config   *Config
+	Shutdown *goo.ShutdownContext
+	DB       *sqlx.DB
 }
 
 func (a *App) Run() error {
@@ -58,27 +60,3 @@ func (a *App) Run() error {
 
 	return nil
 }
-
-// ProvideConfig loads the configuration from the environment.
-func ProvideConfig() (*Config, error) {
-	return goo.ParseConfig[Config]("")
-}
-
-// ProvideArgs parses cli args
-func ProvideArgs() (*Args, error) {
-	return goo.ParseArgs[Args]()
-}
-
-func ProvideGooConfig(cfg *Config) *goo.Config {
-	return &cfg.Config
-}
-
-var wires = wire.NewSet(
-	goo.Wires,
-
-	ProvideGooConfig,
-	ProvideConfig,
-	ProvideArgs,
-
-	wire.Struct(new(App), "*"),
-)

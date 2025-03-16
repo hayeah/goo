@@ -9,4 +9,5 @@ var Wires = wire.NewSet(
 	ProvideSQLX,
 	ProvideMigrate,
 	ProvideEmbbededMigrate,
+	ProvideMain,
 )

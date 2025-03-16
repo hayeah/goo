@@ -2,7 +2,6 @@ package goo
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"sync"
@@ -225,73 +224,4 @@ func TestProvideShutdownContext_SignalHandling(t *testing.T) {
 	// The third interrupt should trigger resetFunc
 	time.Sleep(5 * time.Millisecond) // small delay for the goroutine to process
 	assert.True(resetCalled, "resetFunc should have been called after the 3rd signal")
-}
-
-func TestMain_Success(t *testing.T) {
-	assert := assert.New(t)
-	setupTest(t)
-
-	usingShutdownContext = true
-
-	var exitCode int
-	exitFunc = func(c int) {
-		exitCode = c
-	}
-
-	initFunc := func() (Runner, error) {
-		return &mockRunner{}, nil
-	}
-
-	Main(initFunc)
-	assert.Equal(0, exitCode, "Expect exit code 0 on success")
-}
-
-func TestMain_InitError(t *testing.T) {
-	assert := assert.New(t)
-	setupTest(t)
-
-	usingShutdownContext = true
-
-	var exitCode int
-	exitFunc = func(c int) {
-		exitCode = c
-	}
-
-	initFunc := func() (Runner, error) {
-		return nil, errors.New("some init error")
-	}
-
-	Main(initFunc)
-	assert.Equal(1, exitCode, "Expect exit code 1 on init error")
-}
-
-func TestMain_RunError(t *testing.T) {
-	assert := assert.New(t)
-	setupTest(t)
-
-	usingShutdownContext = true
-
-	var exitCode int
-	exitFunc = func(c int) {
-		exitCode = c
-	}
-
-	initFunc := func() (Runner, error) {
-		return &mockRunner{failOnRun: true}, nil
-	}
-
-	Main(initFunc)
-	assert.Equal(1, exitCode, "Expect exit code 1 on run error")
-}
-
-// mockRunner is just a test stub for Runner
-type mockRunner struct {
-	failOnRun bool
-}
-
-func (m *mockRunner) Run() error {
-	if m.failOnRun {
-		return errors.New("run error")
-	}
-	return nil
 }
