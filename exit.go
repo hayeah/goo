@@ -1,38 +1,39 @@
+// Package goo provides utilities for application lifecycle management and dependency injection.
 package goo
 
 import (
 	"context"
 	"errors"
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
-func GracefulExit() {
-	// a shitty way to see if exitCtx has been initialized by DI
-	if exitCtx == nil {
-		// DI does not require graceful exit
-		return
-	}
-
-	exitCtx.doExit()
-}
-
+// ShutdownContext extends context.Context to manage application shutdown.
+// It provides mechanisms for graceful termination, including waiting for
+// ongoing operations to complete and executing cleanup functions.
 type ShutdownContext struct {
 	context.Context
 
-	exitFns [](func() error)
+	exitFns [](func() error) // Functions to execute during shutdown
 
-	mu        sync.Mutex
-	wg        sync.WaitGroup
-	waitCount int64
-	logger    *slog.Logger
+	mu        sync.Mutex     // Protects concurrent access to shutdown operations
+	wg        sync.WaitGroup // Tracks ongoing operations that must complete before shutdown
+	waitCount int64          // Counter for active blocking operations
+	logger    *slog.Logger   // Logger for shutdown-related messages
 }
 
-func (c *ShutdownContext) doExit() {
+// doExit performs the actual shutdown sequence.
+// It may be called via GracefulExit or SIGINT handling.
+// The method locks to ensure only one caller can initiate shutdown,
+// waits for blocking operations to complete, runs cleanup functions,
+// and then exits the process.
+func (c *ShutdownContext) doExit(code int) {
 	// may be called via GracefulExit or sigint. Lock this so there is only one
 	// caller, and blocking everyone until exit.
 	c.mu.Lock()
@@ -43,9 +44,11 @@ func (c *ShutdownContext) doExit() {
 	// run exit cleanups
 	c.runExitFns()
 
-	os.Exit(0)
+	os.Exit(code)
 }
 
+// waitBlocks waits for all blocking operations to complete before shutdown.
+// It periodically logs progress if waiting takes longer than expected.
 func (c *ShutdownContext) waitBlocks() {
 	// c.log.Debug().Msg("waiting for exit blocks")
 	log := c.logger
@@ -67,6 +70,9 @@ func (c *ShutdownContext) waitBlocks() {
 	c.wg.Wait()
 }
 
+// runExitFns executes all registered cleanup functions.
+// Errors from individual functions are logged but do not stop the execution
+// of subsequent functions.
 func (c *ShutdownContext) runExitFns() {
 	log := c.logger
 
@@ -92,9 +98,12 @@ func (c *ShutdownContext) runExitFns() {
 	// }
 }
 
+// ErrShutdown is returned when an operation is attempted during shutdown.
 var ErrShutdown = errors.New("process is shutting down")
 
-// BlockExit runs a function and wait for it before shutting down a process
+// BlockExit runs a function and waits for it to complete before shutting down the process.
+// If the process is already shutting down, it returns ErrShutdown without executing the function.
+// This is useful for operations that must complete before the application terminates.
 func (c *ShutdownContext) BlockExit(fn func() error) error {
 	// return error if process is already shutting down
 	select {
@@ -111,6 +120,10 @@ func (c *ShutdownContext) BlockExit(fn func() error) error {
 	return err
 }
 
+// OnExit registers a function to be executed during shutdown.
+// These functions are run after all blocking operations have completed.
+// Cleanup operations like closing database connections or releasing resources
+// should be registered using this method.
 func (c *ShutdownContext) OnExit(fn func() error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -118,10 +131,29 @@ func (c *ShutdownContext) OnExit(fn func() error) {
 	c.exitFns = append(c.exitFns, fn)
 }
 
+// Global singleton instance of ShutdownContext
 var exitCtx *ShutdownContext
 var exitCtxOnce sync.Once
+var usingShutdownContext bool
 
+func gracefulExit(code int) {
+	// If no dependency requires ShutdownContext, then gracefulExit just do nothing.
+	if exitCtx == nil {
+		return
+	}
+
+	exitCtx.doExit(code)
+}
+
+// only certain dependency requires graceful shutdown.
+// it's setup only as required.
+// we want library user to always call goo.Main to ensure graceful shutdown.
 func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
+	// ensures that the library user has used goo.Main to ensure graceful shutdown
+	if !usingShutdownContext {
+		return nil, errors.New("ShutdownContext not enabled")
+	}
+
 	// enforce that exitCtx is initialized once
 	exitCtxOnce.Do(func() {
 		bg := context.Background()
@@ -155,10 +187,43 @@ func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
 		}()
 
 		go func() {
+			// Wait for context cancellation by sigint
 			<-exitCtx.Done()
-			exitCtx.doExit()
+			// On Unix-like systems, when a process is terminated by a signal, its exit code is set to 128 plus that signal’s number.
+			exitCtx.doExit(128 + int(syscall.SIGINT))
 		}()
 	})
 
 	return exitCtx, nil
+}
+
+type Runner interface {
+	Run() error
+}
+
+// Main is a wrapper to initialize the shutdown context and run the application.
+//
+// initializes a runner
+// runs the runner
+// ensure graceful shutdown
+func Main[T Runner](init func() (T, error)) {
+	// the init function is a wire injection.
+	//
+	// if any wire provider requires the shutdown context, we need to ensure that gracefulExit is called.
+
+	usingShutdownContext = true
+
+	runner, err := init()
+	if err != nil {
+		log.Println("init", err)
+		gracefulExit(1)
+	}
+
+	err = runner.Run()
+	if err != nil {
+		log.Println("run", err)
+		gracefulExit(1)
+	}
+
+	gracefulExit(0)
 }
