@@ -1,4 +1,7 @@
 // Package goo provides utilities for application lifecycle management and dependency injection.
+//
+// The package implements graceful shutdown handling, allowing applications to properly
+// clean up resources and complete ongoing operations before terminating.
 package goo
 
 import (
@@ -29,10 +32,8 @@ type ShutdownContext struct {
 }
 
 // doExit performs the actual shutdown sequence.
-// It may be called via GracefulExit or SIGINT handling.
-// The method locks to ensure only one caller can initiate shutdown,
-// waits for blocking operations to complete, runs cleanup functions,
-// and then exits the process.
+// It may be called via GracefulExit or sigint. Lock this so there is only one
+// caller, and blocking everyone until exit.
 func (c *ShutdownContext) doExit(code int) {
 	// may be called via GracefulExit or sigint. Lock this so there is only one
 	// caller, and blocking everyone until exit.
@@ -145,9 +146,27 @@ func gracefulExit(code int) {
 	exitCtx.doExit(code)
 }
 
-// only certain dependency requires graceful shutdown.
-// it's setup only as required.
-// we want library user to always call goo.Main to ensure graceful shutdown.
+// ProvideShutdownContext creates and returns a ShutdownContext for dependency injection.
+//
+// This function is typically used with dependency injection frameworks like Wire.
+// It ensures that the application properly handles shutdown signals and manages
+// cleanup operations. The returned ShutdownContext can be used to register
+// cleanup functions and block operations during shutdown.
+//
+// Note: This function will return an error if the application was not started
+// using goo.Main(). Always use goo.Main() as the entry point for your application
+// to ensure proper shutdown handling, even if your application doesn't explicitly
+// use the ShutdownContext.
+//
+// Example usage with Wire:
+//
+//	func ProvideApp(ctx *goo.ShutdownContext, db *sql.DB) *App {
+//	    app := &App{db: db}
+//	    ctx.OnExit(func() error {
+//	        return db.Close()
+//	    })
+//	    return app
+//	}
 func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
 	// ensures that the library user has used goo.Main to ensure graceful shutdown
 	if !usingShutdownContext {
@@ -189,7 +208,7 @@ func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
 		go func() {
 			// Wait for context cancellation by sigint
 			<-exitCtx.Done()
-			// On Unix-like systems, when a process is terminated by a signal, its exit code is set to 128 plus that signal’s number.
+			// On Unix-like systems, when a process is terminated by a signal, its exit code is set to 128 plus that signal's number.
 			exitCtx.doExit(128 + int(syscall.SIGINT))
 		}()
 	})
@@ -203,9 +222,25 @@ type Runner interface {
 
 // Main is a wrapper to initialize the shutdown context and run the application.
 //
-// initializes a runner
-// runs the runner
-// ensure graceful shutdown
+// Main serves as the primary entry point for applications using the goo package.
+// It initializes the application, runs it, and ensures graceful shutdown when
+// the application terminates or receives interrupt signals.
+//
+// The init function is typically a dependency injection function (like a Wire-generated
+// InitializeApp function) that creates and configures the application's components.
+//
+// Important: Always use goo.Main() as the entry point for your application, even if
+// your application doesn't explicitly use ShutdownContext. This ensures proper
+// signal handling and graceful shutdown capabilities are available if needed by
+// any part of your application or its dependencies.
+//
+// Example:
+//
+//	func main() {
+//	    goo.Main(app.InitializeApp)
+//	}
+//
+// Where InitializeApp is a function that returns a Runner implementation.
 func Main[T Runner](init func() (T, error)) {
 	// the init function is a wire injection.
 	//
