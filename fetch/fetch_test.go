@@ -80,7 +80,7 @@ func TestOptionsCloneAndMerge(t *testing.T) {
 			assert := assert.New(t)
 
 			// Test Merge
-			merged := tc.original.Merge(tc.merge)
+			merged := tc.original.MergeInto(tc.merge)
 			assert.Equal(tc.expected, merged, "Merged options should match expected options")
 		})
 	}

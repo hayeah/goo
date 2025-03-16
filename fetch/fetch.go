@@ -91,18 +91,18 @@ func (o *Options) Do(method, resource string) (*http.Response, error) {
 
 // JSON creates a new request and executes it as a JSON request.
 func (o *Options) JSON(method, resource string, opts *Options) (*JSONResponse, error) {
-	opts2 := o.Merge(opts)
+	opts2 := o.MergeInto(opts)
 	return JSON(method, resource, opts2)
 }
 
 // SSE creates a new request and executes it as an SSE request.
 func (o *Options) SSE(method, resource string, opts *Options) (*SSEResponse, error) {
-	opts2 := o.Merge(opts)
+	opts2 := o.MergeInto(opts)
 	return SSE(method, resource, opts2)
 }
 
-// Merge destructively fill in fields of opts with defaults
-func (o *Options) Merge(opts *Options) *Options {
+// MergeInto destructively fill in fields of opts with defaults
+func (o *Options) MergeInto(opts *Options) *Options {
 	if opts == nil {
 		opts = &Options{}
 	}
