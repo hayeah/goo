@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/hayeah/goo-examples/cli"
+	"github.com/hayeah/goo/examples/cli"
 )
 
 func main() {
