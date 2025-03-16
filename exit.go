@@ -17,6 +17,13 @@ import (
 	"time"
 )
 
+// For testing purposes - these can be mocked
+var (
+	exitFunc    = os.Exit      // Production default
+	signalFunc  = signal.Notify // Production default
+	resetFunc   = signal.Reset  // Production default
+)
+
 // ShutdownContext extends context.Context to manage application shutdown.
 // It provides mechanisms for graceful termination, including waiting for
 // ongoing operations to complete and executing cleanup functions.
@@ -45,7 +52,7 @@ func (c *ShutdownContext) doExit(code int) {
 	// run exit cleanups
 	c.runExitFns()
 
-	os.Exit(code)
+	exitFunc(code)
 }
 
 // waitBlocks waits for all blocking operations to complete before shutdown.
@@ -178,7 +185,7 @@ func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
 		bg := context.Background()
 
 		sigs := make(chan os.Signal, 32)
-		signal.Notify(sigs, os.Interrupt)
+		signalFunc(sigs, os.Interrupt)
 
 		ctx, cancel := context.WithCancel(bg)
 
@@ -200,7 +207,7 @@ func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
 
 				if i == 3 {
 					// cancel the handler. next sigint will force an exit
-					signal.Reset(os.Interrupt)
+					resetFunc(os.Interrupt)
 				}
 			}
 		}()
