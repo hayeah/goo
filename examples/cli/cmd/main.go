@@ -5,6 +5,11 @@ import (
 )
 
 func main() {
-	fn, _ := cli.InitMain()
+	fn, err := cli.InitMain()
+
+	if err != nil {
+		panic(err)
+	}
+
 	fn()
 }

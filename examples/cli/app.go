@@ -6,6 +6,8 @@ import (
 
 	"github.com/hayeah/goo"
 	"github.com/jmoiron/sqlx"
+
+	_ "github.com/mattn/go-sqlite3" // Import SQLite driver
 )
 
 type Config struct {
@@ -44,16 +46,36 @@ type App struct {
 	Config   *Config
 	Shutdown *goo.ShutdownContext
 	DB       *sqlx.DB
+	Migrator *goo.DBMigrator
 }
 
-func (a *App) Run() error {
+func (app *App) Run() error {
+	err := app.Migrator.Up([]goo.Migration{
+		{
+			Name: "create_users_table",
+			Up: `
+				CREATE TABLE users (
+					id INTEGER PRIMARY KEY,
+					name TEXT NOT NULL,
+					email TEXT NOT NULL UNIQUE
+				);
+			`,
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	args := app.Args
+
 	switch {
-	case a.Args.Checkout != nil:
-		log.Printf("checkout %v", a.Args.Checkout)
-	case a.Args.Commit != nil:
-		log.Printf("commit %v", a.Args.Commit)
-	case a.Args.Push != nil:
-		log.Printf("push %v", a.Args.Push)
+	case args.Checkout != nil:
+		log.Printf("checkout %v", args.Checkout)
+	case args.Commit != nil:
+		log.Printf("commit %v", args.Commit)
+	case args.Push != nil:
+		log.Printf("push %v", args.Push)
 	default:
 		return fmt.Errorf("unknown command")
 	}

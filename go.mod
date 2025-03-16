@@ -13,6 +13,7 @@ require (
 	github.com/hayeah/mustache/v2 v2.0.0-20241210035343-2bb63c9d7eb9
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/labstack/echo/v4 v4.12.0
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pelletier/go-toml/v2 v2.2.0
 	github.com/samber/slog-echo v1.14.1
 	github.com/stretchr/testify v1.10.0

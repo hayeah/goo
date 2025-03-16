@@ -141,17 +141,6 @@ func (c *ShutdownContext) OnExit(fn func() error) {
 // Global singleton instance of ShutdownContext
 var exitCtx *ShutdownContext
 var exitCtxOnce sync.Once
-var usingShutdownContext bool
-
-func gracefulExit(code int) {
-	// If no dependency requires ShutdownContext, then gracefulExit just do nothing.
-	if exitCtx == nil {
-		exitFunc(code)
-		return
-	}
-
-	exitCtx.doExit(code)
-}
 
 // ProvideShutdownContext creates and returns a ShutdownContext for dependency injection.
 //
@@ -159,27 +148,7 @@ func gracefulExit(code int) {
 // It ensures that the application properly handles shutdown signals and manages
 // cleanup operations. The returned ShutdownContext can be used to register
 // cleanup functions and block operations during shutdown.
-//
-// Note: This function will return an error if the application was not started
-// using goo.Main(). Always use goo.Main() as the entry point for your application
-// to ensure proper shutdown handling, even if your application doesn't explicitly
-// use the ShutdownContext.
-//
-// Example usage with Wire:
-//
-//	func ProvideApp(ctx *goo.ShutdownContext, db *sql.DB) *App {
-//	    app := &App{db: db}
-//	    ctx.OnExit(func() error {
-//	        return db.Close()
-//	    })
-//	    return app
-//	}
 func ProvideShutdownContext(log *slog.Logger) (*ShutdownContext, error) {
-	// ensures that the library user has used goo.Main to ensure graceful shutdown
-	if !usingShutdownContext {
-		return nil, errors.New("ShutdownContext not enabled")
-	}
-
 	// enforce that exitCtx is initialized once
 	exitCtxOnce.Do(func() {
 		bg := context.Background()

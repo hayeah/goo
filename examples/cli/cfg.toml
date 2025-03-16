@@ -6,8 +6,8 @@ MigrationsPath = "./migrations"
 
 [Logging]
 
-LogLevel = "trace"
-LogFormat = "console"
+LogLevel = "DEBUG"
+# LogFormat = "console"
 
 [Echo]
 

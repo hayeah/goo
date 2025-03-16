@@ -37,11 +37,13 @@ func InitMain() (goo.Main, error) {
 	if err != nil {
 		return nil, err
 	}
+	dbMigrator := goo.ProvideDBMigrator(db, logger)
 	app := &App{
 		Args:     args,
 		Config:   config,
 		Shutdown: shutdownContext,
 		DB:       db,
+		Migrator: dbMigrator,
 	}
 	main := goo.ProvideMain(logger, app, shutdownContext)
 	return main, nil
