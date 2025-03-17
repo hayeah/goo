@@ -25,10 +25,11 @@ Style guide for writing the app:
 - Use `goo/fetch` to implement JSON API.
 - Put sqlx code in a `AppStore` struct, rather than sprinkling SQL all over the app.
 - Use sqlx effectively by taking advantage of its support to scan into slices and structs.
+- Take advantage of wire DI. For a singleton struct type with dependencies, write `ProvideAppStore` as a provider, and put that in the `Wires` set.
 
 Building the app:
 
-- Run `make wire` after code generation to generate the dependency injection.
+- Run `make wire` after writing code to generate the dependency injection.
 - Run `go build` to ensure that your code works.
 - Try to fix errors.
 
